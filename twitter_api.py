@@ -52,7 +52,7 @@ class TwitterAPI:
                 break
 
         if DEBUG:
-            print "Total followers:",len(list)
-            print list
+            print "Twitter returned a total of %i followers." % len(list)
+            print "(Sometimes there are duplicates)"
         return list
 
