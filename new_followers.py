@@ -20,7 +20,7 @@ if DEBUG:
 # Compare Followers in Twitter with DB
 new_followers_today = [item for item in set(followers_in_twitter) - set(followers_in_db) ]
 if DEBUG:
-    print new_followers_today
+    print "New Followers:", new_followers_today
 
 # Print out list of new followers
 if new_followers_today:
@@ -29,4 +29,4 @@ if new_followers_today:
     print "Inserting into DB..."
     db.insert_followers(new_followers_today)
 else:
-    print "No new followers today :("
+    print "No new followers since the last execution :("

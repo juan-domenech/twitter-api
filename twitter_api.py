@@ -39,7 +39,7 @@ class TwitterAPI:
                 u = next(user)
                 list.append(str(u.screen_name))
                 if DEBUG:
-                    print "Screen Name:",u.screen_name, "Name:",u.name, "ID:",u.id, "Followers:",u.followers_count, "Friends:",u._json['friends_count'], "Location:",u._json['location'], "Lang:",u._json['lang'], "Time Zone:",u._json['time_zone']
+                    print "Screen Name:",u.screen_name, "Name:",u.name, "ID:",u.id, "Followers:",u.followers_count, "Following:",u._json['friends_count'], "Location:",u._json['location'], "Lang:",u._json['lang'], "Time Zone:",u._json['time_zone']
             except tweepy.TweepError as e:
                 print "ERROR connecting to Twitter API!"
                 print e.message[0]['code']
