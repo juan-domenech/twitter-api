@@ -10,6 +10,7 @@ list = []
 #follower = {}
 
 
+
 class TwitterAPI:
     def __init__ (self ) :
         try:
@@ -79,7 +80,7 @@ class TwitterAPI:
                 print 'We got a timeout ... Sleeping for 15 minutes'
                 time.sleep(15*60)
                 u = next(user)
-                list.append(str(u.screen_name))
+                list.append(self.contruct_user_object(u))
             except StopIteration:
                 break
 
@@ -94,7 +95,6 @@ class TwitterAPI:
     def get_difference(self,followers_a, followers_b):
 
         result = []
-        present = False
 
         for item_b in range(0,len(followers_b)) :
 
@@ -114,3 +114,18 @@ class TwitterAPI:
             print "Difference Total: ",result
 
         return result
+
+
+    # Place_ID for 'Dublin City, Ireland'
+    def send(self,message, location = '7dde0febc9ef245b' ):
+
+        if len(message) > 140 :
+            print "ERROR: Message ' %s ' too long: %i" % (message, len(message) )
+            return False
+
+        self.twitter.update_status( status = message, place_id = location )
+
+        if DEBUG:
+            print "Message '%s' sent!" % message
+
+
