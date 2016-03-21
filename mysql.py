@@ -1,6 +1,6 @@
-DEBUG = True
-
 import MySQLdb as _mysql
+
+DEBUG = True
 
 class MySQLDatabase:
     def __init__ (self, database_name, username, password, host='localhost') :
@@ -8,7 +8,9 @@ class MySQLDatabase:
             self.db = _mysql.connect(db=database_name,
                                      host=host,
                                      user=username,
-                                     passwd=password)
+                                     passwd=password,
+                                     use_unicode=True,
+                                     charset="utf8")
             self.database_name=database_name
             if DEBUG:
                 print "Connected to MySQL!"

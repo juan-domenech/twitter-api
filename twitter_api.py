@@ -6,6 +6,10 @@ from tweepy import OAuthHandler
 
 execfile('creds.py')
 
+list = []
+#follower = {}
+
+
 class TwitterAPI:
     def __init__ (self ) :
         try:
@@ -25,6 +29,32 @@ class TwitterAPI:
             if DEBUG:
                 print "Twitter Connection Closed."
 
+    def contruct_user_object(self,user):
+
+        follower = {}
+
+        if DEBUG:
+            print "User:",user
+
+        follower['screen_name'] = user.screen_name
+        follower['name'] = user.name
+        follower['_id'] = user.id
+        follower['description'] = user.description
+        follower['url'] = user.url
+        follower['followers'] = user.followers_count
+        follower['following'] = user.friends_count
+        follower['listed_count'] = user.listed_count
+        follower['location'] = user.location
+        follower['lang'] = user.lang
+        follower['time_zone'] = user.time_zone
+        follower['utc_offset'] = user.utc_offset
+        follower['created_at'] = str(user.created_at)
+
+        if DEBUG:
+            print "User Object:",follower
+
+        return follower
+
 
     # Get the whole list of followers by user name
     def get_followers(self,user):
@@ -32,12 +62,14 @@ class TwitterAPI:
             print 'Getting Followers for user:',user
 
         list = []
+        follower = {}
         user = tweepy.Cursor(self.twitter.followers, screen_name=user).items()
 
         while True:
             try:
                 u = next(user)
-                list.append(str(u.screen_name))
+                #list.append(str(u.screen_name))
+                list.append(self.contruct_user_object(u))
                 if DEBUG:
                     print "Screen Name:",u.screen_name, "Name:",u.name, "ID:",u.id, "Followers:",u.followers_count, "Following:",u._json['friends_count'], "Location:",u._json['location'], "Lang:",u._json['lang'], "Time Zone:",u._json['time_zone']
             except tweepy.TweepError as e:
@@ -52,7 +84,33 @@ class TwitterAPI:
                 break
 
         if DEBUG:
-            print "Twitter returned a total of %i followers." % len(list)
-            print "(Sometimes there are duplicates)"
+            print "Twitter returned a total of %i followers (Sometimes there are duplicates)." % len(list)
+            for item in list:
+                print item
+                print
         return list
 
+
+    def get_difference(self,followers_a, followers_b):
+
+        result = []
+        present = False
+
+        for item_b in range(0,len(followers_b)) :
+
+            present = False
+
+            for item_a in range(0,len(followers_a)) :
+
+                if followers_b[item_b]['_id'] == followers_a[item_a]['_id']:
+                    present = True
+
+            if not present:
+                result.append(followers_b[item_b])
+                if DEBUG:
+                    print "Difference add item:",followers_b[item_b]
+
+        if DEBUG:
+            print "Difference Total: ",result
+
+        return result

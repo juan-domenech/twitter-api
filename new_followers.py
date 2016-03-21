@@ -1,32 +1,77 @@
 from mysql import MySQLDatabase
 from twitter_api import TwitterAPI
+import pymongo
 
 DEBUG = True
 
-db = MySQLDatabase('twitter','twitter','twitter','localhost')
+# MySQL datasource
+#db = MySQLDatabase('twitter','twitter','twitter','localhost')
 
 twitter = TwitterAPI()
 
+def mongo_connect(database='test'):
+    try:
+        connection = pymongo.MongoClient()
+        print "Mongo is connected!"
+        return connection[database]
+
+    except pymongo.errors.ConnectionFailure, e:
+        print "Could not connect to MongoDB: %s" % e
+
+
+# Mongo DB Name 'twitter_stream'
+connection = mongo_connect('twitter')
+
+# Mongo Collection name = 'my_collection'
+collection_followers = connection['followers']
+
+# To store former followers
+collection_followers_archive = connection['followers_archive']
+
 # Get your current followers list from DB
-followers_in_db = db.get_followers()
+#followers_in_db = db.get_followers()
+followers_in_db = list (collection_followers.find())
 if DEBUG:
-    print "Print Followers in DB:", followers_in_db
+    print "Print Followers in DB:", len(followers_in_db), followers_in_db
 
 # Update this with your Twitter screen_name
-followers_in_twitter = twitter.get_followers('juan_domenech')
-if DEBUG:
-    print "Print Followers in Twitter:",followers_in_twitter
+#followers_in_twitter = twitter.get_followers('juan_domenech')
+#followers_in_twitter = twitter.get_followers('victorhorcasita')
+followers_in_twitter = [ {'lang': u'en', 'utc_offset': None, 'description': u'graphic designer, photographer, typography addict, avid hiker, foodie, wine lover & aspiring cake builder...', 'url': None, 'created_at': '2013-03-14 16:29:38', 'time_zone': None, 'name': u'Tara Shain', 'followers': 63, 'location': u'Barcelona, Catalonia', 'following': 134, '_id': 1267455212, 'listed_count': 10, 'screen_name': u'TaraShain'}, {'lang': u'es', 'utc_offset': 3600, 'description': u'Swapsee es tu mercado de talento local y plataforma de intercambio de habilidades. Haz networking, encuentra trabajos, talento, descuentos y mucho m\xe1s.', 'url': u'http://t.co/nWdqdPOnVO', 'created_at': '2012-10-15 10:57:14', 'time_zone': u'Madrid', 'name': u'Swapsee', 'followers': 1255, 'location': u'Barcelona, Madrid', 'following': 3205, '_id': 882085885, 'listed_count': 105, 'screen_name': u'myswapsee'}, {'lang': u'en', 'utc_offset': 3600, 'description': u'#Ecommerce can eliminate Homelessness. What are you doing to help homeless people? #HomelessEntrepreneur #eShowBCN16 #TransformingDigitalPeople', 'url': u'https://t.co/IcZlB8b78i', 'created_at': '2009-07-28 20:34:45', 'time_zone': u'Madrid', 'name': u'Andrew Funk', 'followers': 25732, 'location': u'Barcelona, Spain +34 697877089', 'following': 27547, '_id': 61011524, 'listed_count': 608, 'screen_name': u'andrewfunkspain'}, {'lang': u'en', 'utc_offset': -14400, 'description': u'Chief Strategist @vieodesign | Proud Mom | Gold #HubPartner | #HubSpotUserGroup Leader | \u2764\ufe0f#InboundMarketing, Psychology, digital media, wine, & chocolate', 'url': u'https://t.co/XjBUVXoEoU', 'created_at': '2010-06-16 05:30:09', 'time_zone': u'Eastern Time (US & Canada)', 'name': u'Holly Yalove', 'followers': 1784, 'location': u'Knoxville, TN', 'following': 1756, '_id': 156166657, 'listed_count': 164, 'screen_name': u'HollyYalove'}, {'lang': u'es', 'utc_offset': None, 'description': u'', 'url': None, 'created_at': '2010-12-20 21:58:04', 'time_zone': None, 'name': u'Marina Pie', 'followers': 65, 'location': u'', 'following': 84, '_id': 228862238, 'listed_count': 1, 'screen_name': u'MarinaPiegari'}, {'lang': u'en', 'utc_offset': 3600, 'description': u'The American Society of Barcelona is a non-profit organization providing English language business & social events in Barcelona.', 'url': u'http://t.co/gpS0T4EZZt', 'created_at': '2011-02-04 16:07:10', 'time_zone': u'Madrid', 'name': u'American Society BCN', 'followers': 1420, 'location': u'Barcelona, Spain', 'following': 2067, '_id': 247341544, 'listed_count': 47, 'screen_name': u'AmerSoc'}]
 
-# Compare Followers in Twitter with DB
-new_followers_today = [item for item in set(followers_in_twitter) - set(followers_in_db) ]
 if DEBUG:
-    print "New Followers:", new_followers_today
+    print "Print Followers in Twitter:",len(followers_in_twitter), followers_in_twitter
+
+# Compare Followers in Twitter with DB (to find new)
+# new_followers_today = [item for item in set( [ item['screen_name'] for item in followers_in_twitter ] ) - set( [ item['screen_name'] for item in followers_in_db ] ) ]
+new_followers_today = twitter.get_difference(followers_in_db, followers_in_twitter)
+if DEBUG:
+    print "New Followers:", len(new_followers_today), new_followers_today
+
+# Compare Followes in DB with Twitter (to find lost)
+lost_followers_today = twitter.get_difference(followers_in_twitter, followers_in_db)
+if DEBUG:
+    print "Lost Followers:", len(lost_followers_today), lost_followers_today
 
 # Print out list of new followers
 if new_followers_today:
     print "You have %i new followers!" % len(new_followers_today)
-    print new_followers_today
+    for item in new_followers_today:
+        print item['screen_name']
     print "Inserting into DB..."
-    db.insert_followers(new_followers_today)
+    collection_followers.insert_many( new_followers_today )
 else:
     print "No new followers since the last execution :("
+
+# Print out list of lost followers
+if lost_followers_today:
+    print "You have lost %i followers since the last execution :(" % len(lost_followers_today)
+    for item in lost_followers_today:
+        print item['screen_name']
+        collection_followers_archive.insert( item )
+        collection_followers.remove( {'_id': item['_id'] } )
+    print "DB updated."
+else:
+    print "No followers lost since the last execution! :)"
+
+
