@@ -7,11 +7,9 @@ from tweepy import OAuthHandler
 execfile('creds.py')
 
 list = []
-#follower = {}
-
-
 
 class TwitterAPI:
+
     def __init__ (self ) :
         try:
             auth = OAuthHandler(CONSUMER_KEY, CONSUMER_SECRET)
@@ -24,13 +22,15 @@ class TwitterAPI:
             print e.message[0]['code']
             print e.args[0][0]['code']
 
+
     def __del__( self ):
         if hasattr(self, 'twitter'):
             #self.twitter.close()
             if DEBUG:
                 print "Twitter Connection Closed."
 
-    def contruct_user_object(self,user):
+
+    def contruct_user_object(self, user):
 
         follower = {}
 
@@ -58,7 +58,7 @@ class TwitterAPI:
 
 
     # Get the whole list of followers by user name
-    def get_followers(self,user):
+    def get_followers(self, user):
         if DEBUG:
             print 'Getting Followers for user:',user
 
@@ -70,7 +70,8 @@ class TwitterAPI:
             try:
                 u = next(user)
                 #list.append(str(u.screen_name))
-                list.append(self.contruct_user_object(u))
+                list.append( self.contruct_user_object(u) )
+                time.sleep(0.3)
                 if DEBUG:
                     print "Screen Name:",u.screen_name, "Name:",u.name, "ID:",u.id, "Followers:",u.followers_count, "Following:",u._json['friends_count'], "Location:",u._json['location'], "Lang:",u._json['lang'], "Time Zone:",u._json['time_zone']
             except tweepy.TweepError as e:
@@ -80,7 +81,7 @@ class TwitterAPI:
                 print 'We got a timeout ... Sleeping for 15 minutes'
                 time.sleep(15*60)
                 u = next(user)
-                list.append(self.contruct_user_object(u))
+                list.append( self.contruct_user_object(u) )
             except StopIteration:
                 break
 
@@ -92,7 +93,7 @@ class TwitterAPI:
         return list
 
 
-    def get_difference(self,followers_a, followers_b):
+    def get_difference(self, followers_a, followers_b):
 
         result = []
 
@@ -117,15 +118,16 @@ class TwitterAPI:
 
 
     # Place_ID for 'Dublin City, Ireland'
-    def send(self,message, location = '7dde0febc9ef245b' ):
+    def send(self, message, location='7dde0febc9ef245b' ):
 
         if len(message) > 140 :
-            print "ERROR: Message ' %s ' too long: %i" % (message, len(message) )
+            print 'ERROR: Message "%s" too long: %i' % (message, len(message) )
             return False
 
+        time.sleep(5)
         self.twitter.update_status( status = message, place_id = location )
 
         if DEBUG:
-            print "Message '%s' sent!" % message
+            print 'Message "%s" sent!' % message
 
 
