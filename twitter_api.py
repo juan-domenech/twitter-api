@@ -74,6 +74,7 @@ class TwitterAPI:
                 time.sleep(0.3)
                 if DEBUG:
                     print "Screen Name:",u.screen_name, "Name:",u.name, "ID:",u.id, "Followers:",u.followers_count, "Following:",u._json['friends_count'], "Location:",u._json['location'], "Lang:",u._json['lang'], "Time Zone:",u._json['time_zone']
+                    print
             except tweepy.TweepError as e:
                 print "ERROR connecting to Twitter API!"
                 print e.message[0]['code']
@@ -87,9 +88,7 @@ class TwitterAPI:
 
         if DEBUG:
             print "Twitter returned a total of %i followers (Sometimes there are duplicates)." % len(list)
-            for item in list:
-                print item
-                print
+            print
         return list
 
 
@@ -129,5 +128,4 @@ class TwitterAPI:
 
         if DEBUG:
             print 'Message "%s" sent!' % message
-
 
