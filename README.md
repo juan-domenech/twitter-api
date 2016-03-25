@@ -24,9 +24,10 @@ Main module.
 
 Credentials file with this information:
 
+```
 CONSUMER_KEY = 'xxxxxxxxxxxxxxxxxxxxxxxxx'
 CONSUMER_SECRET = 'xxxxxxxxxxxxxxxxxxxxxxxxx'
 OAUTH_TOKEN = 'xxxxxxxxxxxxxxxxxxxxxxxxx'
 OAUTH_TOKEN_SECRET = 'xxxxxxxxxxxxxxxxxxxxxxxxx'
-
+```
 
