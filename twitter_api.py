@@ -71,6 +71,7 @@ class TwitterAPI:
                 u = next(user)
                 #list.append(str(u.screen_name))
                 list.append( self.contruct_user_object(u) )
+                # 300ms sleep to avoid Twitter API time-outs
                 time.sleep(0.3)
                 if DEBUG:
                     print "Screen Name:",u.screen_name, "Name:",u.name, "ID:",u.id, "Followers:",u.followers_count, "Following:",u._json['friends_count'], "Location:",u._json['location'], "Lang:",u._json['lang'], "Time Zone:",u._json['time_zone']
