@@ -1,6 +1,7 @@
 from twitter_api import TwitterAPI
 import pymongo
 import datetime
+import time
 
 DEBUG = True
 
@@ -17,6 +18,37 @@ def mongo_connect(database='test'):
         print "Could not connect to MongoDB: %s" % e
 
 
+def check_today_run():
+    # Get today entries in collection track (stats)
+    #execute = {'time_stamp' : { '$gte' : 'new ISODate('+str(time.strftime("%Y-%m-%d"))+')' } }
+    #if DEBUG:
+    #    print "Mongo:",execute
+    #result = collection_track.find( execute )
+
+    # Get the latest entry in the collection
+    result = collection_track.find().sort([('_id', -1)]).limit(1)
+    if DEBUG:
+        print result[0]
+
+    # Search for today date (in '2016, 4, 3' format) present in the last entry of the collection
+    if time.strftime("%Y,%_m,%_d") in str(result[0]):
+        # Today date present. This task ran sometime today.
+        if DEBUG:
+            print "Entries present in collection_track for today."
+        return True
+    else:
+        # Today not present. This task hasn't run today.
+        if DEBUG:
+            print "No entries in collection_track for today."
+        return False
+
+
+def store_stats(current_followers, new_followers_today, lost_followers_today, queue_size):
+    if DEBUG:
+        print "collection_stats.insert current_followers:",current_followers,"new_followers_today:",new_followers_today,"lost_followers_today",lost_followers_today,"queue_size:",queue_size
+    collection_track.insert( {'time_stamp':datetime.datetime.utcnow(), 'current_followers':current_followers, 'new_followers_today':new_followers_today,'lost_followers_today':lost_followers_today,'queue_size':queue_size } )
+
+
 # Add message to the queue for later delivery
 def add_to_queue(screen_name, message):
 
@@ -30,17 +62,20 @@ def add_to_queue(screen_name, message):
 
 
 # Process the outbound message queue and send one of them out
-def process_message_queue( count=1 ):
+def process_message_queue( count=1, dry_run=True ):
+
+    if DEBUG and dry_run:
+        print "process_message_queue is in dry_run mode. No messages will be sent and the queue won't be altered."
 
     queue_size = collection_statuses_queue.count()
     print 'Message queue size:',queue_size
     if queue_size == 0:
         print 'No message in the queue. Nothing to do.'
+        return queue_size
     else:
         for number in range (0, count):
-            #item = collection_statuses_queue.find_one()
 
-            # Get get the most recent message for a user and ignore possibly older ones
+            # Get the most recent message for a user and ignore possibly older ones
             item = collection_statuses_queue.find().sort([('_id', -1)]).limit(1)
 
             for element in item:
@@ -52,22 +87,32 @@ def process_message_queue( count=1 ):
             # Message ready to send
             print 'Sending message from the queue: "'+message+'"'
 
-            #
-            twitter.send(message)
-            #
+            if dry_run:
+                print "We are in dry_run. Not sending this message:",message
+            else:
+                twitter.send(message)
 
-            # Remove ALL the messages for this user to make sure that we won't send old stuff later
-            if DEBUG:
-                print 'Removing message(s) for screen_name: '+screen_name+' from the queue'
-            collection_statuses_queue.remove({'screen_name':screen_name})
+            if dry_run:
+                print "We are in dry_run. Not removing any message from the queue for screen_name:",screen_name
+            else:
+                # Remove ALL the messages for this user to make sure that we won't send old stuff later
+                if DEBUG:
+                    print 'Removing message(s) for screen_name: '+screen_name+' from the queue'
+                collection_statuses_queue.remove({'screen_name':screen_name})
 
-        print 'Message queue size when exiting:',collection_statuses_queue.count()
+        queue_size = collection_statuses_queue.count()
+        print 'Message queue size when exiting:',queue_size
+        return queue_size
 
 
 # Collections
 
 # Mongo DB Name 'twitter_bot'
 connection = mongo_connect('twitter_bot')
+
+# Mongo Collection name = 'track' to store a couple of metrics
+# Is going to be helpful to detect whether or not we already run today
+collection_track = connection['track']
 
 # Mongo Collection name = 'followers' for our current followers
 collection_followers = connection['followers']
@@ -78,6 +123,16 @@ collection_followers_archive = connection['followers_archive']
 # Mongo Collection name = 'queue' for Outbound tweets queue
 collection_statuses_queue = connection['queue']
 
+
+# Check whether we ran this task today already
+# We want this task to run only once a day
+if check_today_run():
+    if DEBUG:
+        print "Task already executed today. Exiting."
+    exit(0)
+else:
+    if DEBUG:
+        print "Task not executed today. Let's run."
 
 # Get your current followers list from DB
 followers_in_db = list (collection_followers.find())
@@ -141,9 +196,13 @@ else:
 
 
 # Check the message queue and send one message out if there is any
-process_message_queue( count=1 )
+queue_size = process_message_queue( count=1, dry_run=False )
+
+# Store stats
+store_stats(len(followers_in_twitter), len(new_followers_today), len(lost_followers_today), queue_size)
 
 del collection_followers
 del collection_followers_archive
 del collection_statuses_queue
+del collection_track
 del connection
