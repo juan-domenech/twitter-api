@@ -50,15 +50,15 @@ def store_stats(current_followers, new_followers_today, lost_followers_today, qu
 
 
 # Add message to the queue for later delivery
-def add_to_queue(screen_name, message):
+def add_to_queue(screen_name, message, priority='low'):
 
     insert = '@'+screen_name+' '+message
     if len(insert) > 140 :
         print 'ERROR: Message too long',insert,len(insert)
     else:
         if DEBUG:
-            print 'Adding to the queue: message:"'+insert+'"  time_stamp: '+ str(datetime.datetime.utcnow())
-        collection_statuses_queue.insert( {'screen_name':screen_name,'message':insert,'time_stamp':datetime.datetime.utcnow() } )
+            print 'Adding to the queue: message:"'+insert+'"  time_stamp: '+ str(datetime.datetime.utcnow())+' with priority: '+str(priority)
+        collection_statuses_queue.insert( {'screen_name':screen_name,'message':insert,'time_stamp':datetime.datetime.utcnow(), 'priority':priority } )
 
 
 # Process the outbound message queue and send one of them out
@@ -69,36 +69,48 @@ def process_message_queue( count=1, dry_run=True ):
 
     queue_size = collection_statuses_queue.count()
     print 'Message queue size:',queue_size
+
+    # When no queue -> exit
     if queue_size == 0:
         print 'No message in the queue. Nothing to do.'
-        return queue_size
+        return 0
     else:
-        for number in range (0, count):
 
-            # Get the most recent message for a user and ignore possibly older ones
-            item = collection_statuses_queue.find().sort([('_id', -1)]).limit(1)
+        # Get the most recent message with priority=high (sort by date)
+        item = next( collection_statuses_queue.find({'priority':'high'}).sort([('_id', -1)]).limit(1) )
 
-            for element in item:
-                if DEBUG:
-                    print element
-                message = element['message']
-                screen_name = element['screen_name']
+        if DEBUG:
+            print "Result for priority = high",item
 
-            # Message ready to send
-            print 'Sending message from the queue: "'+message+'"'
+        if item :
+            # We have one hit
+            message = item['message']
+            screen_name = item['screen_name']
+        else:
+            # Not hit for high. Let's try any other priority (sort by date)
+            if DEBUG:
+                print "No messages for priotity = high. Checking for any other priority."
+            item = next( collection_statuses_queue.find({'priority':{'$ne':'high'}}).sort([('_id', -1)]).limit(1) )
+            if DEBUG:
+                print "Result for priority != high",item
+            message = item['message']
+            screen_name = item['screen_name']
 
-            if dry_run:
-                print "We are in dry_run. Not sending this message:",message
-            else:
-                twitter.send(message)
+        # Message ready to send
+        print 'Sending message from the queue: "'+message+'"'
 
-            if dry_run:
-                print "We are in dry_run. Not removing any message from the queue for screen_name:",screen_name
-            else:
-                # Remove ALL the messages for this user to make sure that we won't send old stuff later
-                if DEBUG:
-                    print 'Removing message(s) for screen_name: '+screen_name+' from the queue'
-                collection_statuses_queue.remove({'screen_name':screen_name})
+        if dry_run:
+            print "We are in dry_run. Not sending this message:",message
+        else:
+            twitter.send(message)
+
+        if dry_run:
+            print "We are in dry_run. Not removing any message from the queue for screen_name:",screen_name
+        else:
+            # Remove ALL the messages for this user to make sure that we won't send old stuff later
+            if DEBUG:
+                print 'Removing message(s) for screen_name: '+screen_name+' from the queue'
+            collection_statuses_queue.remove({'screen_name':screen_name})
 
         queue_size = collection_statuses_queue.count()
         print 'Message queue size when exiting:',queue_size
@@ -171,7 +183,7 @@ if new_followers_today:
         collection_followers.insert( item )
 
         print "Adding welcome message to the queue..."
-        add_to_queue( item['screen_name'], welcome_message )
+        add_to_queue( item['screen_name'], welcome_message, priority='high' )
 
     print "DB updated."
 else:
@@ -188,7 +200,7 @@ if lost_followers_today:
         collection_followers.remove( {'_id': item['_id'] } )
 
         print "Adding farewell message to the queue..."
-        add_to_queue( item['screen_name'], farewell_message )
+        add_to_queue( item['screen_name'], farewell_message, priority='low' )
 
     print "DB updated."
 else:
