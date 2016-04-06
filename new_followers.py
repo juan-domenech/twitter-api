@@ -76,8 +76,9 @@ def process_message_queue( count=1, dry_run=True ):
         return 0
     else:
 
-        # Get the most recent message with priority=high (sort by date)
-        item = next( collection_statuses_queue.find({'priority':'high'}).sort([('_id', -1)]).limit(1) )
+        # Get oldest message with priority=high (sort by time_stamp)
+        # item = next( collection_statuses_queue.find({'priority':'high'}).sort([('_id', -1)]).limit(1) )
+        item = next( collection_statuses_queue.find({'priority':'high'}).sort([('time_stamp', 1)]).limit(1) )
 
         if DEBUG:
             print "Result for priority = high",item
@@ -145,6 +146,7 @@ if check_today_run():
 else:
     if DEBUG:
         print "Task not executed today. Let's run."
+
 
 # Get your current followers list from DB
 followers_in_db = list (collection_followers.find())

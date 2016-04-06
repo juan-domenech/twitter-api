@@ -10,7 +10,7 @@ pymongo
 
 ## Description
 
-Simple Twitter-Bot with functions to get your followers list, store them (MongoDB) and send welcome/farewell messages to them.
+Simple Twitter-Bot with functions to get your followers list, store them (MongoDB) and send them welcome/farewell messages.
 
 ### twitter_api.py
 
