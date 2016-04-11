@@ -2,10 +2,23 @@ from twitter_api import TwitterAPI
 import pymongo
 import datetime
 import time
+import sys
 
-DEBUG = True
 
-twitter = TwitterAPI()
+# Print Debug messages
+def print_DEBUG(message):
+    if DEBUG:
+        print 'DEBUG: '+message
+
+
+# Print help message
+def print_help():
+    print '--queue      process messages in the queue and exit'
+    print '--dry-run    run in dry-run mode (no messages will be sent)'
+    print '--debug      enable debug mode'
+    print '--help       print this message'
+    print
+
 
 # MongoDB datasource
 def mongo_connect(database='test'):
@@ -61,61 +74,109 @@ def add_to_queue(screen_name, message, priority='low'):
         collection_statuses_queue.insert( {'screen_name':screen_name,'message':insert,'time_stamp':datetime.datetime.utcnow(), 'priority':priority } )
 
 
-# Process the outbound message queue and send one of them out
-def process_message_queue( count=1, dry_run=True ):
+# Send a single Twitter message and delete any other pending messages for that user
+def send_one_message_and_remove(screen_name, message):
 
-    if DEBUG and dry_run:
-        print "process_message_queue is in dry_run mode. No messages will be sent and the queue won't be altered."
+    print 'Sending message to:',screen_name
+    print_DEBUG(str(message))
 
-    queue_size = collection_statuses_queue.count()
-    print 'Message queue size:',queue_size
+    if dry_run:
+        print "We are in dry_run. NOT sending this message:",message
+    else:
+        twitter.send(message)
+
+    if dry_run:
+        print "We are in dry_run. NOT removing any message from the queue for screen_name:",screen_name
+        return
+    else:
+        # Remove ALL the messages for this user to make sure that we won't send old stuff later
+        print_DEBUG('Removing message(s) for screen_name: '+screen_name+' from the queue')
+        collection_statuses_queue.remove({'screen_name':screen_name})
+        return
+
+
+# Process the outbound message queue and send one message out
+def process_message_queue( dry_run ):
+
+    # In either case send one message tops
+    limit = 1
+
+    if dry_run:
+        print "process_message_queue() is in dry_run mode. No messages will be sent and the queue won't be altered."
 
     # When no queue -> exit
-    if queue_size == 0:
+    if collection_statuses_queue.count() == 0 :
         print 'No message in the queue. Nothing to do.'
         return 0
+
+    # If there is something in the queue with priority == high. Process and return.
+    elif collection_statuses_queue.find({'priority':'high'}).count() != 0 :
+
+        # Get oldest message with priority == high (sort by time_stamp, the oldest first)
+        item = next( collection_statuses_queue.find({'priority':'high'}).sort([('time_stamp', 1)]).limit(limit) )
+        print_DEBUG('Result for priority == high: '+str(item))
+
+        # print_DEBUG('No messages with priority == high pending to send.')
+        screen_name = item['screen_name']
+        message = item['message']
+        send_one_message_and_remove(screen_name, message)
+
+        queue_size = collection_statuses_queue.find({'priority':'high'}).count()
+        print 'Messages pending in the queue with priority == high: ',queue_size
+
+        total_queue_size = collection_statuses_queue.count()
+        print 'Total messages pending in the queue: ',collection_statuses_queue.count()
+        return total_queue_size
+
+
+    # Not hit for high priority. Let's try any other priority (sort by time_stamp, the oldest first)
     else:
 
-        # Get oldest message with priority=high (sort by time_stamp)
-        # item = next( collection_statuses_queue.find({'priority':'high'}).sort([('_id', -1)]).limit(1) )
-        item = next( collection_statuses_queue.find({'priority':'high'}).sort([('time_stamp', 1)]).limit(1) )
+        print_DEBUG("No messages for priority = high. Checking for any other priority.")
+        item = next( collection_statuses_queue.find({'priority':{'$ne':'high'}}).sort([('time_stamp', 1)]).limit(limit) )
+        print_DEBUG("Result for priority != high: "+str(item))
 
-        if DEBUG:
-            print "Result for priority = high",item
+        screen_name = item['screen_name']
+        message = item['message']
+        send_one_message_and_remove(screen_name, message)
 
-        if item :
-            # We have one hit
-            message = item['message']
-            screen_name = item['screen_name']
-        else:
-            # Not hit for high. Let's try any other priority (sort by date)
-            if DEBUG:
-                print "No messages for priotity = high. Checking for any other priority."
-            item = next( collection_statuses_queue.find({'priority':{'$ne':'high'}}).sort([('_id', -1)]).limit(1) )
-            if DEBUG:
-                print "Result for priority != high",item
-            message = item['message']
-            screen_name = item['screen_name']
+        queue_size = collection_statuses_queue.find({'priority':{'$ne':'high'}}).count()
+        print 'Messages pending in the queue with priority low or med: ',queue_size
 
-        # Message ready to send
-        print 'Sending message from the queue: "'+message+'"'
+        total_queue_size = collection_statuses_queue.count()
+        print 'Total messages in pending the queue: ',total_queue_size
+        return total_queue_size
 
-        if dry_run:
-            print "We are in dry_run. Not sending this message:",message
-        else:
-            twitter.send(message)
 
-        if dry_run:
-            print "We are in dry_run. Not removing any message from the queue for screen_name:",screen_name
-        else:
-            # Remove ALL the messages for this user to make sure that we won't send old stuff later
-            if DEBUG:
-                print 'Removing message(s) for screen_name: '+screen_name+' from the queue'
-            collection_statuses_queue.remove({'screen_name':screen_name})
 
-        queue_size = collection_statuses_queue.count()
-        print 'Message queue size when exiting:',queue_size
-        return queue_size
+### Main
+
+# Obtaining argument list form command line
+arguments = sys.argv
+
+# The first argument is our program name. Let's use it.
+running_name = arguments[0]
+
+# Discarding first elements of the list
+arguments = arguments[1:]
+
+# Set DEBUG mode
+if '--debug' in arguments:
+    DEBUG = True
+    print_DEBUG('Running '+str(running_name))
+    print_DEBUG('Debug enabled')
+else:
+    DEBUG = False
+
+
+# Is '--help' present? Then print Help and exit(0)
+if '--help' in arguments:
+    print_DEBUG('Help called')
+    print_help()
+    exit(0)
+
+
+twitter = TwitterAPI()
 
 
 # Collections
@@ -135,6 +196,26 @@ collection_followers_archive = connection['followers_archive']
 
 # Mongo Collection name = 'queue' for Outbound tweets queue
 collection_statuses_queue = connection['queue']
+
+
+
+# Check for "--dry-run". When enabled no messages from the queue will be sent.
+if '--dry-run' in arguments:
+    dry_run = True
+    print_DEBUG('--dry-run == True')
+else:
+    dry_run = False
+    print_DEBUG('--dry-run == False')
+
+
+# Check for "process only queue command" present on the command line. In that case process+exit
+if '--queue' in arguments:
+    print "--queue == True. Processing Queue only."
+
+    # Check the message queue and send one message out if there is any
+    process_message_queue( dry_run )
+
+    exit(0)
 
 
 # Check whether we ran this task today already
@@ -210,7 +291,7 @@ else:
 
 
 # Check the message queue and send one message out if there is any
-queue_size = process_message_queue( count=1, dry_run=False )
+queue_size = process_message_queue( dry_run )
 
 # Store stats
 store_stats(len(followers_in_twitter), len(new_followers_today), len(lost_followers_today), queue_size)
