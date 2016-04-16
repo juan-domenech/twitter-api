@@ -8,7 +8,7 @@ import sys
 # Print Debug messages
 def print_DEBUG(message):
     if DEBUG:
-        print 'DEBUG: '+message
+        print 'DEBUG: '+str(message)
 
 
 # Print help message
@@ -20,15 +20,25 @@ def print_help():
     print
 
 
+# Check for valid arguments
+def valid_arguments(arguments, allowed_switches):
+    for item_argument in arguments:
+        if item_argument not in allowed_switches:
+            print "Unrecognized option: '"+item_argument+"'"
+            print "Try --help for more information."
+            return False
+    return True
+
+
 # MongoDB datasource
 def mongo_connect(database='test'):
     try:
         connection = pymongo.MongoClient()
-        print "Mongo is connected!"
+        print_DEBUG("Mongo is connected!")
         return connection[database]
 
     except pymongo.errors.ConnectionFailure, e:
-        print "Could not connect to MongoDB: %s" % e
+        print "ERROR: Could not connect to MongoDB: %s" % e
 
 
 def check_today_run():
@@ -40,25 +50,21 @@ def check_today_run():
 
     # Get the latest entry in the collection
     result = collection_track.find().sort([('_id', -1)]).limit(1)
-    if DEBUG:
-        print result[0]
+    print_DEBUG(result[0])
 
     # Search for today date (in '2016, 4, 3' format) present in the last entry of the collection
     if time.strftime("%Y,%_m,%_d") in str(result[0]):
         # Today date present. This task ran sometime today.
-        if DEBUG:
-            print "Entries present in collection_track for today."
+        print_DEBUG('Entries present in collection_track for today.')
         return True
     else:
         # Today not present. This task hasn't run today.
-        if DEBUG:
-            print "No entries in collection_track for today."
+        print_DEBUG('No entries in collection_track for today.')
         return False
 
 
 def store_stats(current_followers, new_followers_today, lost_followers_today, queue_size):
-    if DEBUG:
-        print "collection_stats.insert current_followers:",current_followers,"new_followers_today:",new_followers_today,"lost_followers_today",lost_followers_today,"queue_size:",queue_size
+    print_DEBUG("collection_stats.insert current_followers:"+str(current_followers)+"new_followers_today:"+str(new_followers_today)+"lost_followers_today"+str(lost_followers_today)+"queue_size:"+str(queue_size))
     collection_track.insert( {'time_stamp':datetime.datetime.utcnow(), 'current_followers':current_followers, 'new_followers_today':new_followers_today,'lost_followers_today':lost_followers_today,'queue_size':queue_size } )
 
 
@@ -69,24 +75,23 @@ def add_to_queue(screen_name, message, priority='low'):
     if len(insert) > 140 :
         print 'ERROR: Message too long',insert,len(insert)
     else:
-        if DEBUG:
-            print 'Adding to the queue: message:"'+insert+'"  time_stamp: '+ str(datetime.datetime.utcnow())+' with priority: '+str(priority)
+        print_DEBUG('Adding to the queue: message:"'+str(insert)+'"  time_stamp: '+str(datetime.datetime.utcnow())+' with priority: '+str(priority))
         collection_statuses_queue.insert( {'screen_name':screen_name,'message':insert,'time_stamp':datetime.datetime.utcnow(), 'priority':priority } )
 
 
 # Send a single Twitter message and delete any other pending messages for that user
 def send_one_message_and_remove(screen_name, message):
 
-    print 'Sending message to:',screen_name
     print_DEBUG(str(message))
 
     if dry_run:
-        print "We are in dry_run. NOT sending this message:",message
+        print 'DRY_RUN: NOT Sending message to:',screen_name
+        print "DRY_RUN: NOT sending this message:",message
     else:
         twitter.send(message)
 
     if dry_run:
-        print "We are in dry_run. NOT removing any message from the queue for screen_name:",screen_name
+        print "DRY_RUN: NOT removing any message from the queue for screen_name:",screen_name
         return
     else:
         # Remove ALL the messages for this user to make sure that we won't send old stuff later
@@ -102,7 +107,7 @@ def process_message_queue( dry_run ):
     limit = 1
 
     if dry_run:
-        print "process_message_queue() is in dry_run mode. No messages will be sent and the queue won't be altered."
+        print "DRY_RUN: No messages will be sent and the queue won't be altered."
 
     # When no queue -> exit
     if collection_statuses_queue.count() == 0 :
@@ -151,6 +156,9 @@ def process_message_queue( dry_run ):
 
 ### Main
 
+# List of allowed switches
+allowed_switches = ['--queue','--dry-run','--help','--debug']
+
 # Obtaining argument list form command line
 arguments = sys.argv
 
@@ -160,14 +168,20 @@ running_name = arguments[0]
 # Discarding first elements of the list
 arguments = arguments[1:]
 
+print 'Running '+str(running_name)
+
 # Set DEBUG mode
 if '--debug' in arguments:
     DEBUG = True
-    print_DEBUG('Running '+str(running_name))
     print_DEBUG('Debug enabled')
 else:
     DEBUG = False
 
+if not valid_arguments(arguments,allowed_switches):
+    # Exit
+    print_DEBUG('Exit with errors due invalid arguments')
+    print "ERROR: Exit"
+    sys.exit(2)
 
 # Is '--help' present? Then print Help and exit(0)
 if '--help' in arguments:
@@ -221,35 +235,30 @@ if '--queue' in arguments:
 # Check whether we ran this task today already
 # We want this task to run only once a day
 if check_today_run():
-    if DEBUG:
-        print "Task already executed today. Exiting."
+    print_DEBUG("Task already executed today. Exiting.")
     exit(0)
 else:
-    if DEBUG:
-        print "Task not executed today. Let's run."
+    print_DEBUG("Task not executed today. Let's run.")
 
 
 # Get your current followers list from DB
 followers_in_db = list (collection_followers.find())
-if DEBUG:
-    print "Print Followers in DB:", len(followers_in_db), followers_in_db
+print "Followers in DB: "+str(len(followers_in_db))
+print_DEBUG("Followers in DB:"+str(followers_in_db))
 
 # Update this with your Twitter screen_name
 followers_in_twitter = twitter.get_followers('juan_domenech')
-
-if DEBUG:
-    print "Print Followers in Twitter:",len(followers_in_twitter), followers_in_twitter
+print "Followers in Twitter:"+str(len(followers_in_twitter))
+print_DEBUG("Followers in Twitter:"+str(followers_in_twitter))
 
 
 # Compare Followers in Twitter with DB (to find new)
 new_followers_today = twitter.get_difference(followers_in_db, followers_in_twitter)
-if DEBUG:
-    print "New Followers:", len(new_followers_today), new_followers_today
+print_DEBUG("New Followers:"+str(len(new_followers_today))+" "+str(new_followers_today))
 
 # Compare Followes in DB with Twitter (to find lost)
 lost_followers_today = twitter.get_difference(followers_in_twitter, followers_in_db)
-if DEBUG:
-    print "Lost Followers:", len(lost_followers_today), lost_followers_today
+print_DEBUG("Lost Followers:"+str(len(lost_followers_today))+" "+str(lost_followers_today))
 
 
 # Preconfigured messages
@@ -301,3 +310,5 @@ del collection_followers_archive
 del collection_statuses_queue
 del collection_track
 del connection
+
+print 'Exiting '+str(running_name)

@@ -1,10 +1,24 @@
-DEBUG = True
-
+import sys
 import time
 import tweepy
 from tweepy import OAuthHandler
 
-execfile('creds.py')
+# Print Debug messages
+def print_DEBUG(message):
+    if DEBUG:
+        print 'DEBUG: '+str(message)
+
+# Obtaining argument list form command line
+arguments = sys.argv
+
+# Set DEBUG mode
+if '--debug' in arguments:
+    DEBUG = True
+else:
+    DEBUG = False
+
+
+import creds
 
 list = []
 
@@ -12,8 +26,8 @@ class TwitterAPI:
 
     def __init__ (self ) :
         try:
-            auth = OAuthHandler(CONSUMER_KEY, CONSUMER_SECRET)
-            auth.set_access_token(OAUTH_TOKEN, OAUTH_TOKEN_SECRET)
+            auth = OAuthHandler(creds.CONSUMER_KEY, creds.CONSUMER_SECRET)
+            auth.set_access_token(creds.OAUTH_TOKEN, creds.OAUTH_TOKEN_SECRET)
             self.twitter = tweepy.API(auth)
             if DEBUG:
                 print "Connected to Twitter!"
