@@ -87,8 +87,11 @@ def send_one_message_and_remove(screen_name, message):
     if dry_run:
         print 'DRY_RUN: NOT Sending message to:',screen_name
         print "DRY_RUN: NOT sending this message:",message
-    else:
+    elif still_a_follower(screen_name):
+        print_DEBUG(str(screen_name)+' still a follower. Sending message.')
         twitter.send(message)
+    else:
+        print_DEBUG(str(screen_name)+' is no longer a follower. Ignoring this message')
 
     if dry_run:
         print "DRY_RUN: NOT removing any message from the queue for screen_name:",screen_name
@@ -98,6 +101,19 @@ def send_one_message_and_remove(screen_name, message):
         print_DEBUG('Removing message(s) for screen_name: '+screen_name+' from the queue')
         collection_statuses_queue.remove({'screen_name':screen_name})
         return
+
+
+# Check wether this guy is currently a follower
+def still_a_follower(screen_name):
+    print_DEBUG('Checking '+str(screen_name)+'as follower')
+    #screen_name_to_test = collection_followers.find({"screen_name":screen_name}).count()
+    #print_DEBUG('Found: '+str(screen_name_to_test))
+    if collection_followers.find({"screen_name":screen_name}).count():
+        print_DEBUG('Present')
+        return True
+    else:
+        print_DEBUG('Not present')
+        return False
 
 
 # Process the outbound message queue and send one message out
