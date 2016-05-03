@@ -1,12 +1,5 @@
 # Twitter-Bot
 
-## Requisites
-
-Python 2.7.x
-MongoDB
-Twitter Developer account (https://dev.twitter.com/oauth/overview/application-owner-access-tokens)
-tweepy
-pymongo
 
 ## Description
 
@@ -26,9 +19,11 @@ Twitter functions Class.
 
 A preconfigured message is created for the new followers and a different one for the lost followers. The messages are inserted into a MongoDB collection called `queue`. In every execution (every time the code runs) a single message is extracted from the queue and sent. The oldest message is selected. After sending the message is deleted from the queue and also every other message waiting to be send to the same destination. This is done to avoid sending multiple greeting/farewell messages to spamers.
 
+Note: No message will be send to a former follower.
+
 ### creds.py
 
-Credentials file with this information:
+Import file with your Twitter App credentials:
 
 ```
 CONSUMER_KEY = 'xxxxxxxxxxxxxxxxxxxxxxxxx'
